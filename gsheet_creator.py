@@ -10,17 +10,18 @@ from oauth2client.file import Storage
 
 try:
 	import argparse
-	flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
+	# flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
 except ImportError:
 	flags = None
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/presentations']
 CLIENT_SECRET_FILE = os.path.expanduser('~/gsheet_creator/google_client.json')
 APPLICATION_NAME = ''
-DOMAIN = 'example.com' # Used to share with members of an org
+
 
 class GSheetEditor():
 	def __init__(self):
+		self.DOMAIN = 'example.com' # Used to share with members of an org
 		self.colors = self.get_colors()
 		self.service = self.setup_service()
 		self.drive_service = self.setup_drive_service()
@@ -83,10 +84,10 @@ class GSheetEditor():
 
 	def get_colors(self):
 		colors ={}
-		unmapped = {'Green': '(217,234,211)', 'Pink': '(234,209,220)', 'Purple': '(217,210,233)', 'Blue': '(207,226,243)', 'Green2': '(217,234,211)', 'Yellow': '(255,255,0)'}
+		unmapped = {'Green': '(217,234,211)', 'Pink': '(234,209,220)', 'Purple': '(217,210,233)', 'Blue': '(207,226,243)', 'Green2': '(217,234,211)', 'Yellow': '(255,255,0)', 'Light Orange': '(255,202,151)', 'Light Cyan':'(205,225,228)', 'Light Red':'(255,200,202)', 'Light Yellow':'(255,244,202)'}
 		for name, color in unmapped.items():
 			red, green, blue = color.strip('(').strip(')').split(',')
-			colors[name] = {'red': float(red)/128, 'blue': float(blue)/128, 'green': float(green)/128}
+			colors[name] = {'red': float(red)/255, 'blue': float(blue)/255, 'green': float(green)/255}
 		return colors
 
 
@@ -111,7 +112,7 @@ class GSheetEditor():
 		return response
 
 
-	def setup_row_data(self, list_of_values):
+	def setup_cell_data(self, list_of_values):
 		cells = []
 		for value in list_of_values:
 			cells.append({
@@ -121,25 +122,30 @@ class GSheetEditor():
 		return {'values': cells}
 
 
-	def add_sheet_data(self, sheet, sheet_data):
-		# Matrix of lists. Fills data down.
+	def setup_row_data(self, sheet_data):
 		row_data = []
 		for row_index, row in enumerate(sheet_data):
 			add = {
 			'startRow':row_index,
-			'rowData': self.setup_row_data(row)
+			'rowData': self.setup_cell_data(row)
 			}
 			row_data.append(add)
+		return row_data
+
+	def add_sheet_data(self, sheet, sheet_data):
+		# Matrix of lists. Fills data down.
+		row_data = self.setup_row_data(sheet_data)
 		sheet['data'] = row_data
 
 
-	def create_sheet(self, title, rows=20, columns=12, sheet_data=[]):
+	def create_sheet(self, title, rows=20, columns=12, sheet_data=[], sheet_id=None):
 		sheet = {"properties": {
-			  "title": title,
-			  "gridProperties": {
-				"rowCount": rows,
-				"columnCount": columns
-				}
+			"sheetId": sheet_id,
+		  "title": title,
+		  "gridProperties": {
+			"rowCount": rows,
+			"columnCount": columns
+			}
 			}
 		}
 		if len(sheet_data):
@@ -147,9 +153,11 @@ class GSheetEditor():
 		return sheet
 
 
-	def ranges_from_indexes(self, row_index_start, row_index_end=None, column_index_start=None, column_index_end=None, sheet_id=None):
+	def ranges_from_indexes(self, row_index_start=None, row_index_end=None, column_index_start=None, column_index_end=None, sheet_id=None):
 		# End ranges are exclusive
-		add = {'startRowIndex': row_index_start}
+		add = {}
+		if row_index_start:
+			add['startRowIndex'] = row_index_start
 		if row_index_end:
 			add['endRowIndex'] = row_index_end
 		if column_index_start:
@@ -335,7 +343,7 @@ class GSheetEditor():
 		domain_permission = {
 		    'type': 'domain',
 		    'role': 'writer',
-		    'domain': DOMAIN
+		    'domain': self.DOMAIN
 		}
 		batch.add(self.drive_service.permissions().create(
 			    fileId=file_id,
